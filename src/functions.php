@@ -238,36 +238,33 @@ function inArrayParameterTransformer(
         $placeholder = $phi->placeholder . $placeholderSeparator . $counter;
 
         if ($counter == 0) {
-            $collection->add(new PlaceholderIdentifier(
-                    $placeholder,
-                    $phi->identifier,
-                    value: $v,
-                    prefix: '(',
-                    suffix: ',',
-                )
+            $collection->add(
+                $placeholder,
+                $phi->identifier,
+                value: $v,
+                prefix: '(',
+                suffix: ',',
             );
             $counter++;
             continue;
         }
 
         if ($counter == $count) {
-            $collection->add(new PlaceholderIdentifier(
-                    $placeholder,
-                    $phi->identifier,
-                    value: $v,
-                    suffix: ')',
-                )
+            $collection->add(
+                $placeholder,
+                $phi->identifier,
+                value: $v,
+                suffix: ')',
             );
             $counter++;
             continue;
         }
 
-        $collection->add(new PlaceholderIdentifier(
-                $placeholder,
-                $phi->identifier,
-                value: $v,
-                suffix: ',',
-            )
+        $collection->add(
+            $placeholder,
+            $phi->identifier,
+            value: $v,
+            suffix: ',',
         );
         $counter++;
     }
@@ -305,36 +302,33 @@ function multiInsertParameterTransformer(
             $placeholder = $phi->placeholder . $placeholderSeparator . $firstLevelCounter . $placeholderSeparator . $secondLevelCounter;
 
             if($secondLevelCounter == 0) {
-                $collection->add(new PlaceholderIdentifier(
-                        $placeholder,
-                        $phi->identifier,
-                        value: $v,
-                        prefix: '(',
-                        suffix: ',',
-                    )
+                $collection->add(
+                    $placeholder,
+                    $phi->identifier,
+                    value: $v,
+                    prefix: '(',
+                    suffix: ',',
                 );
                 $secondLevelCounter++;
                 continue;
             }
 
             if($secondLevelCounter == $secondLevelCount) {
-                $collection->add(new PlaceholderIdentifier(
+                $collection->add(
                         $placeholder,
                         $phi->identifier,
                         value: $v,
                         suffix: $firstLevelCounter < $firstLevelCount ? '),' : ')',
-                    )
                 );
                 $secondLevelCounter++;
                 continue;
             }
 
-            $collection->add(new PlaceholderIdentifier(
+            $collection->add(
                     $placeholder,
                     $phi->identifier,
                     value: $v,
                     suffix: ',',
-                )
             );
             $secondLevelCounter++;
         }
