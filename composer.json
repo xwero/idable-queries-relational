@@ -3,7 +3,7 @@
   "description": "Idable queries package for relational databases",
   "type": "library",
   "license": "mit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minimum-stability": "dev",
   "require": {
     "php": ">=8.4",
