@@ -54,10 +54,8 @@ For the parameters it is possible to use a `IdableParameterCollection` or an arr
 
 ### executeStatement
 
-Executes the prepared `Statement`. 
-
-Because the query always returns tabular data a returnAction argument is added. 
-Use a closure to call the appropriate fetch function for the application.
+Executes and optionally returns data for the prepared `Statement`. 
+An output config can be added to make it consistent. Read more about the output behavior in the [Statement](#statement) section.
 
 ### executeTransaction
 
@@ -67,21 +65,9 @@ Allows to execute multiple `Statement` instances. On `Error` a rollback will be 
 
 This is a convenience function that combines `getRow` and `createMapFromFirstLevelResults`.
 
-### getRow
-
-This a convenience function that executes the `executeStatement` function with the `PDOStatement->fetch` method.
-
-### getRows
-
-This a convenience function that executes the `executeStatement` function with the `PDOStatement->fetchAll` method.
-
 ### getSecondLevelMapCollection
 
 This is a convenience function that combines `getRows` and `createMapFromSecondLevelResults`.
-
-### getValue
-
-This a convenience function that executes the `executeStatement` function with the `PDOStatement->fetchColumn` method.
 
 ### inArrayParameterTransformer
 
@@ -111,16 +97,28 @@ The class configures a few things on the `PDO` instance:
 
 This means `$staement = $connection->client->prepare('SELECT * FROM users;')` can be used with the functions that use a `Statement` instance as input.
 
+### QueryReturnConfigRelational
+
+Manipulate the output of the `executeStatement` function and `Statement->run` method with different booleans.
+
+The `trueOnSuccess` boolean is in this package less useful as the underlying database methods also return a boolean.
+
 ### RelationalConnection
 
 Interface for the connection class.
 
-### Statement
+### Statement <a id="statement"></a>
 
 Class to create a consistent language. 
+It exposes the `PDO` instance with the client property and the queryString property exposes the database query.
 
-And to expose the `PDO` instance with the client property.
-This is useful when the application needs to execute a `PDO` instance method in the returnAction of the `executeStatement` function.
+This class has the methods:
+
+- bindParameter: this method wraps `bindParam` for consistency.
+- run: this method executes and gets the data if needed. It is possible to change the data output a `config` argument is added that accepts a `QueryReturnConfigRelational` instance otherwise, it returns the least amount of data.
+
+> **note:** The least amount of data is based on the row amount and the field amount. For example, a single row with a single field return the value of the field instead of an array.
+> If you want a consistent use the config argument.
 
 ## Tips
 

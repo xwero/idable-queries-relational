@@ -71,22 +71,16 @@ function buildStatement(
     }
     // the same code is used twice in the function
     $bindParameters = function(Statement $statement, array $parameters): Statement|Error {
-        foreach ($parameters as $placeholder => &$value) {
-            $type = match (true) {
-                is_string($value) || is_float($value) => PDO::PARAM_STR,
-                is_bool($value) => PDO::PARAM_BOOL,
-                is_int($value) => PDO::PARAM_INT,
-                default => false,
-            };
-
-            if($type === false) {
-                return new Error(new InvalidArgumentException('The value is not a valid parameter type: '. gettype($value)));
-            }
+        foreach ($parameters as $placeholder => $value) {
             // the placeholder can be an array with integer keys.
             // In that case the value needs to start from 1 to bind the value.
             $param = is_int($placeholder) ? $placeholder + 1 : $placeholder;
 
-            $statement->bindParam($param, $value, $type);
+            $status = $statement->bindParameter($param, $value);
+
+            if($status instanceof Error) {
+                return $status;
+            }
         }
 
         return $statement;
@@ -109,23 +103,13 @@ function buildStatement(
     }
 }
 
-function executeStatement(Statement|Error $statement, Closure|null $returnAction = null) : mixed
+function executeStatement(Statement|Error $statement, QueryReturnConfigRelational|null $config = null) : mixed
 {
     if ($statement instanceof Error) {
         return $statement;
     }
 
-    try {
-        $statement->execute();
-
-        if($returnAction !== null) {
-            return $returnAction($statement);
-        }
-
-        return true;
-    } catch (PDOException $e) {
-        return new Error($e);
-    }
+    return $statement->run($config);
 }
 
 function executeTransaction(Statement ...$statements): Error|true
@@ -161,31 +145,13 @@ function getFirstLevelMap(
         return $statement;
     }
 
-    $data = getRow($statement);
+    $data = executeStatement($statement, new QueryReturnConfigRelational(returnRow: true));
 
     if($data instanceof Error) {
         return $data;
     }
 
     return createMapFromFirstLevelResults($data, $query, $aliases);
-}
-
-function getRow(Statement|Error $statement): mixed
-{
-    if ($statement instanceof Error) {
-        return $statement;
-    }
-
-    return executeStatement($statement, fn(Statement $statement) => $statement->fetch());
-}
-
-function getRows(Statement|Error $statement): mixed
-{
-    if ($statement instanceof Error) {
-        return $statement;
-    }
-
-    return executeStatement($statement, fn(Statement $statement) => $statement->fetchAll());
 }
 
 function getSecondLevelMapCollection(
@@ -198,22 +164,13 @@ function getSecondLevelMapCollection(
         return $statement;
     }
 
-    $data = getRows($statement);
+    $data = executeStatement($statement, new QueryReturnConfigRelational(returnRows: true));
 
     if($data instanceof Error) {
         return $data;
     }
 
     return createMapFromSecondLevelResults($data, $query, $aliases);
-}
-
-function getValue(Statement|Error $statement): mixed
-{
-    if ($statement instanceof Error) {
-        return $statement;
-    }
-
-    return executeStatement($statement, fn(Statement $statement) => $statement->fetchColumn());
 }
 
 function inArrayParameterTransformer(
