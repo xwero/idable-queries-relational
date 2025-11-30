@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Xwero\IdableQueriesRelational;
 
-use Closure;
 use Exception;
 use InvalidArgumentException;
 use LengthException;
-use PDO;
 use PDOException;
 use Xwero\IdableQueriesCore\AliasCollection;
-use Xwero\IdableQueriesCore\BaseNamespaceCollection;
+use Xwero\IdableQueriesCore\DirtyQuery;
 use Xwero\IdableQueriesCore\Error;
+use Xwero\IdableQueriesCore\ExecutablePair;
 use Xwero\IdableQueriesCore\IdableParameterCollection;
 use Xwero\IdableQueriesCore\Map;
 use Xwero\IdableQueriesCore\MapCollection;
-use Xwero\IdableQueriesCore\PlaceholderIdentifier;
-use Xwero\IdableQueriesCore\PlaceholderIdentifierCollection;
+use Xwero\IdableQueriesCore\NamespaceCollection;
+use Xwero\IdableQueriesCore\Placeholder;
+use Xwero\IdableQueriesCore\PlaceholderCollection;
 use function Xwero\IdableQueriesCore\createMapFromFirstLevelResults;
 use function Xwero\IdableQueriesCore\createMapFromSecondLevelResults;
 use function Xwero\IdableQueriesCore\isIdableQuery;
@@ -28,7 +28,7 @@ function buildStatement(
     RelationalConnection                                     $conn,
     string                                                   $query,
     IdableParameterCollection|array|null $parameters = null,
-    BaseNamespaceCollection|null                             $namespaces = null,
+    NamespaceCollection|null                             $namespaces = null,
 ): Statement|Error
 {
     $isIdableQuery = isIdableQuery($query);
@@ -48,15 +48,19 @@ function buildStatement(
     if($query instanceof Error) {
         return $query;
     }
+
+    $dirtyQuery = false;
     // Identifiers with the CustomIdentifier attribute can change the original query.
     if ($parameters instanceof IdableParameterCollection) {
-        $queryPlaceholderIdentifierCollection = replaceParametersInQuery($query, $parameters, $namespaces, PDOfyParameterPlaceholder(...));
+        $dirtyQuery = replaceParametersInQuery($query, $parameters, $namespaces, PDOfyParameterPlaceholder(...));
 
-        if($queryPlaceholderIdentifierCollection instanceof Error) {
-            return $queryPlaceholderIdentifierCollection;
+        if($dirtyQuery instanceof Error) {
+            return $dirtyQuery;
         }
 
-        $query = $queryPlaceholderIdentifierCollection->query;
+        if($dirtyQuery instanceof DirtyQuery) {
+            $query = $dirtyQuery->query;
+        }
     }
 
     try {
@@ -94,13 +98,17 @@ function buildStatement(
         }
     }
 
-    try {
-        $placeholderReplacements = $queryPlaceholderIdentifierCollection->parameters->getPlaceholderValuePairs(PDOfyParameterPlaceholder(...));
+    if($dirtyQuery instanceof DirtyQuery) {
+        try {
+            $placeholderReplacements = $dirtyQuery->parameters->getPlaceholderValuePairs(PDOfyParameterPlaceholder(...));
 
-        return $bindParameters($statement, $placeholderReplacements);
-    } catch (Exception $e) {
-        return new Error($e);
+            return $bindParameters($statement, $placeholderReplacements);
+        } catch (Exception $e) {
+            return new Error($e);
+        }
     }
+
+    return $statement;
 }
 
 function executeStatement(Statement|Error $statement, QueryReturnConfigRelational|null $config = null) : mixed
@@ -112,24 +120,32 @@ function executeStatement(Statement|Error $statement, QueryReturnConfigRelationa
     return $statement->run($config);
 }
 
-function executeTransaction(Statement ...$statements): Error|true
+function executeTransaction(Statement|ExecutablePair ...$statements): Error|true
 {
     if(count($statements) === 0) {
         return new Error(new InvalidArgumentException('A transaction must have at least one statement.'));
     }
 
     try {
-        $statements[0]->client->beginTransaction();
+        $first = $statements[0];
+        $connection = $first instanceof Statement? $first->client : $first->statement->client;
+
+        $connection->beginTransaction();
 
         foreach ($statements as $statement) {
-            $statement->execute();
+            if($statement instanceof Statement) {
+                executeStatement($statement);
+                continue;
+            }
+
+            executeStatement($statement->statement, $statement->returnConfig);
         }
 
-        $statements[0]->client->commit();
+        $connection->commit();
 
         return true;
     } catch (Exception $e) {
-        $statements[0]->client->rollBack();
+        $connection->rollBack();
 
         return new Error($e);
     }
@@ -174,10 +190,10 @@ function getSecondLevelMapCollection(
 }
 
 function inArrayParameterTransformer(
-    PlaceholderIdentifier $phi,
+    Placeholder $phi,
     array $value,
     string $placeholderSeparator = '_'
-): PlaceholderIdentifierCollection|Error
+): PlaceholderCollection|Error
 {
     if (count($value) < 2) {
         return new Error(new InvalidArgumentException('The parameter array must have at least 2 elements.'));
@@ -187,7 +203,7 @@ function inArrayParameterTransformer(
         return new Error(new InvalidArgumentException('The parameter array items all need to be of the same type.'));
     }
 
-    $collection = new PlaceholderIdentifierCollection();
+    $collection = new PlaceholderCollection();
     $count = count($value) - 1;
     $counter = 0;
 
@@ -230,10 +246,10 @@ function inArrayParameterTransformer(
 }
 
 function multiInsertParameterTransformer(
-    PlaceholderIdentifier $phi,
+    Placeholder $phi,
     array $value,
     string $placeholderSeparator = '_'
-): PlaceholderIdentifierCollection|Error
+): PlaceholderCollection|Error
 {
     if (count($value) < 2) {
         return new Error(new InvalidArgumentException('The value array must have at least 2 elements.'));
@@ -247,7 +263,7 @@ function multiInsertParameterTransformer(
         return new Error(new LengthException('The value array items all have need have the same length.'));
     }
 
-    $collection = new PlaceholderIdentifierCollection();
+    $collection = new PlaceholderCollection();
     $firstLevelCount = count($value) - 1;
     $firstLevelCounter = 0;
 

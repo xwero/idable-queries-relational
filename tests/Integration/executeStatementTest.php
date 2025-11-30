@@ -69,7 +69,7 @@ test('query types', function (
     'get idable row with return config' => [
         "INSERT INTO users (name, email, password) VALUES ('me', 'dfsdf', 'dfsdf'), ('metwo', 'dfsdf', 'dfsdf')",
         'SELECT ~Test\Identifiers\Users:Name FROM ~Test\Identifiers\Users:Users WHERE ~Test\Identifiers\Users:Name = :Test\Identifiers\Users:Name',
-        IdableParameterCollection::createWithIdableParameter(Users::Name, 'me'),
+        IdableParameterCollection::createWithItem(Users::Name, 'me'),
         new QueryReturnConfigRelational(returnRow: true),
         ['name' => 'me'],
     ],
